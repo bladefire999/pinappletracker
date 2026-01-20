@@ -5,17 +5,9 @@
     <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
 
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #e0f7fa;
-        }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #e0f7fa; }
 
-        #map {
-            height: 100vh;
-            width: 100%;
-        }
+        #map { height: 100vh; width: 100%; }
 
         /* Dashboard */
         #bruce-dashboard {
@@ -31,28 +23,11 @@
             border: 2px solid #0288d1;
         }
 
-        h1 {
-            margin: 0 0 10px;
-            color: #01579b;
-            font-size: 24px;
-            text-align: center;
-        }
+        h1 { margin: 0 0 10px; color: #01579b; font-size: 24px; text-align: center; }
 
-        .status-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-
-        .label {
-            font-weight: bold;
-            color: #555;
-        }
-
-        .value {
-            font-weight: bold;
-        }
+        .status-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .label { font-weight: bold; color: #555; }
+        .value { font-weight: bold; }
 
         .status-active { color: #2e7d32; }
         .status-docked { color: #c62828; }
@@ -67,31 +42,40 @@
             font-family: monospace;
         }
 
-        .bruce-count {
-            font-size: 32px;
-            display: block;
-        }
+        .bruce-count { font-size: 32px; display: block; }
 
         /* Suspicious Activity Box */
         #suspicious-box {
             position: absolute;
             bottom: 25px;
             left: 25px;
-            max-width: 340px;
+            max-width: 360px;
             background: rgba(255, 235, 59, 0.95);
             border: 3px dashed #f57f17;
             border-radius: 14px;
             padding: 14px 16px;
             display: none;
-            z-index: 1000;
+            z-index: 2000;
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
             animation: wiggle 1.2s infinite;
         }
 
+        .title-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
         .alert-icon {
             font-size: 26px;
-            text-align: center;
             animation: flash 1s infinite;
+        }
+
+        .alert-title {
+            font-weight: 800;
+            color: #5d4037;
+            letter-spacing: 0.3px;
         }
 
         .alert-text {
@@ -100,11 +84,12 @@
             font-weight: bold;
             color: #5d4037;
             text-align: center;
+            line-height: 1.3;
         }
 
         @keyframes flash {
             0% { opacity: 1; }
-            50% { opacity: 0.3; }
+            50% { opacity: 0.25; }
             100% { opacity: 1; }
         }
 
@@ -121,14 +106,17 @@
 
 <div id="bruce-dashboard">
     <h1>🛳️ The Pineapple Express</h1>
+
     <div class="status-row">
         <span class="label">Current Status:</span>
         <span class="value" id="status-text">Loading...</span>
     </div>
+
     <div class="status-row">
         <span class="label">Trip Day:</span>
         <span class="value" id="trip-day">--</span>
     </div>
+
     <div class="status-row">
         <span class="label">Next Stop:</span>
         <span class="value" id="next-stop">--</span>
@@ -140,8 +128,12 @@
     </div>
 </div>
 
+<!-- Suspicious Activity Box -->
 <div id="suspicious-box">
-    <div class="alert-icon">⚠️</div>
+    <div class="title-row">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-title">SUSPICIOUS ACTIVITY</div>
+    </div>
     <div class="alert-text" id="suspicious-text"></div>
 </div>
 
@@ -179,12 +171,12 @@ const suspiciousActivities = [
     { leg: 4, text: "Delayed morning movement detected. Passengers having a sleep-in today." },
     { leg: 5, text: "Environmental scan alert. High levels of pineapple density detected." },
     { leg: 6, text: "Visual irregularities observed. Passengers seem unusually interested in door decorations." },
-    { leg: 7, text: "Repeated door traffic detected. No luggage movement observed." },
+    { leg: 7, text: "Repeat corridor traffic detected. Nobody appears to be going anywhere." },
     { leg: 8, text: "Ship stationary. Internal motion continues." },
     { leg: 9, text: "Noise sensors report laughter followed by silence." },
     { leg:10, text: "Multiple Do Not Disturb indicators active simultaneously." },
     { leg:11, text: "Crew avoiding certain corridors." },
-    { leg:12, text: "Extended dock stay. Engines idle. Ship still rocking." },
+    { leg:12, text: "Docked longer than expected. Engines idle. Ship still rocking." },
     { leg:13, text: "Passenger return rate unusually delayed." },
     { leg:14, text: "Automated systems recommend minding own business." }
 ];
@@ -211,7 +203,6 @@ function initMap() {
 function updateShipStatus() {
     const now = Date.now();
     const start = schedule[0].departure;
-    const end = schedule[schedule.length-1].arrival;
 
     let pos = schedule[0];
     let status = "Awaiting Departure";
@@ -244,12 +235,12 @@ function updateShipStatus() {
     const alert = suspiciousActivities.find(a => a.leg === day);
     const box = document.getElementById("suspicious-box");
 
-    if (alert) {
-        document.getElementById("suspicious-text").innerText = alert.text;
-        box.style.display = "block";
-    } else {
-        box.style.display = "none";
-    }
+    document.getElementById("suspicious-text").innerText =
+        alert
+        ? alert.text
+        : "Cargo inspection underway. Crates being loaded appear to contain tropical fruit.";
+
+    box.style.display = "block";
 }
 </script>
 
