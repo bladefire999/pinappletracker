@@ -3,13 +3,10 @@
 <head>
     <title>The Pineapple Express Tracker</title>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
-
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #e0f7fa; }
 
-        #map { height: 100vh; width: 100%; }
-
-        /* Dashboard */
+        /* The Dashboard Overlay */
         #bruce-dashboard {
             position: absolute;
             top: 20px;
@@ -23,15 +20,12 @@
             border: 2px solid #0288d1;
         }
 
-        h1 { margin: 0 0 10px; color: #01579b; font-size: 24px; text-align: center; }
-
+        h1 { margin: 0 0 10px 0; color: #01579b; font-size: 24px; text-align: center; }
         .status-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
         .label { font-weight: bold; color: #555; }
-        .value { font-weight: bold; }
+        .value { color: #000; font-weight: bold; }
 
-        .status-active { color: #2e7d32; }
-        .status-docked { color: #c62828; }
-
+        /* The Bruce Counter */
         .bruce-meter {
             background: #263238;
             color: #4fc3f7;
@@ -39,12 +33,19 @@
             border-radius: 8px;
             text-align: center;
             margin-top: 15px;
-            font-family: monospace;
+            font-family: 'Courier New', Courier, monospace;
         }
+        .bruce-count { font-size: 32px; font-weight: bold; display: block; }
+        .bruce-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
 
-        .bruce-count { font-size: 32px; display: block; }
+        /* Map Container */
+        #map { height: 100vh; width: 100%; }
 
-        /* Suspicious Activity Box */
+        /* Status colours */
+        .status-active { color: #2e7d32; }
+        .status-docked { color: #c62828; }
+
+        /* Suspicious Activity Alert */
         #suspicious-box {
             position: absolute;
             bottom: 25px;
@@ -60,22 +61,23 @@
             animation: wiggle 1.2s infinite;
         }
 
-        .title-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
+        #suspicious-box .title-row{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            justify-content:center;
         }
 
         .alert-icon {
             font-size: 26px;
+            text-align: center;
             animation: flash 1s infinite;
         }
 
-        .alert-title {
+        .alert-title{
             font-weight: 800;
-            color: #5d4037;
-            letter-spacing: 0.3px;
+            color:#5d4037;
+            letter-spacing:0.3px;
         }
 
         .alert-text {
@@ -84,7 +86,7 @@
             font-weight: bold;
             color: #5d4037;
             text-align: center;
-            line-height: 1.3;
+            line-height: 1.25;
         }
 
         @keyframes flash {
@@ -101,148 +103,230 @@
         }
     </style>
 </head>
-
 <body>
 
-<div id="bruce-dashboard">
-    <h1>🛳️ The Pineapple Express</h1>
+    <div id="bruce-dashboard">
+        <h1>🛳️🍍 The Pineapple Express</h1>
+        <hr>
+        <div class="status-row">
+            <span class="label">Current Status:</span>
+            <span class="value" id="status-text">Locating Bruce...</span>
+        </div>
+        <div class="status-row">
+            <span class="label">Trip Day:</span>
+            <span class="value" id="trip-day">--</span>
+        </div>
+        <div class="status-row">
+            <span class="label">Destination:</span>
+            <span class="value" id="next-stop">--</span>
+        </div>
 
-    <div class="status-row">
-        <span class="label">Current Status:</span>
-        <span class="value" id="status-text">Loading...</span>
+        <div class="bruce-meter">
+            <span class="bruce-count" id="bruce-counter">0000</span>
+            <span class="bruce-label">Total Pineapples 🍍</span>
+        </div>
+
+        <div style="margin-top:10px; font-size:12px; text-align:center; color:#888;">
+            *Live estimates based on itinerary.
+        </div>
     </div>
 
-    <div class="status-row">
-        <span class="label">Trip Day:</span>
-        <span class="value" id="trip-day">--</span>
+    <!-- Suspicious Activity Box -->
+    <div id="suspicious-box">
+        <div class="title-row">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-title">SUSPICIOUS ACTIVITY</div>
+        </div>
+        <div class="alert-text" id="suspicious-text">Monitoring behaviour…</div>
     </div>
 
-    <div class="status-row">
-        <span class="label">Next Stop:</span>
-        <span class="value" id="next-stop">--</span>
-    </div>
+    <div id="map"></div>
 
-    <div class="bruce-meter">
-        <span class="bruce-count" id="bruce-counter">0000</span>
-        <span>Total Pineapples 🍍</span>
-    </div>
-</div>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCUefb8ZLoq9mlu4NwTgt0SkZCHxH3QnOI&callback=initMap&v=weekly" async></script>
 
-<!-- Suspicious Activity Box -->
-<div id="suspicious-box">
-    <div class="title-row">
-        <div class="alert-icon">⚠️</div>
-        <div class="alert-title">SUSPICIOUS ACTIVITY</div>
-    </div>
-    <div class="alert-text" id="suspicious-text"></div>
-</div>
+    <script>
+        let map;
+        let shipMarker;
 
-<div id="map"></div>
-
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCUefb8ZLoq9mlu4NwTgt0SkZCHxH3QnOI&callback=initMap&v=weekly" async></script>
-
-<script>
-let map;
-let shipMarker;
-
-function getDate(day, time) {
-    return new Date(`2026-${day}T${time}:00+13:00`).getTime();
-}
-
-const schedule = [
-    { name: "Auckland", lat: -36.8485, lng: 174.7633, arrival: null, departure: getDate("01-20","18:00") },
-    { name: "Bay of Islands", lat: -35.2621, lng: 174.1220, arrival: getDate("01-21","07:00"), departure: getDate("01-21","19:00") },
-    { name: "Napier", lat: -39.4928, lng: 176.9120, arrival: getDate("01-23","08:00"), departure: getDate("01-23","17:00") },
-    { name: "Wellington", lat: -41.2865, lng: 174.7762, arrival: getDate("01-24","08:00"), departure: getDate("01-24","19:00") },
-    { name: "Nelson", lat: -41.2706, lng: 173.2840, arrival: getDate("01-25","08:00"), departure: getDate("01-25","20:00") },
-    { name: "Picton", lat: -41.2930, lng: 174.0079, arrival: getDate("01-26","08:00"), departure: getDate("01-26","16:00") },
-    { name: "Christchurch", lat: -43.6017, lng: 172.7188, arrival: getDate("01-27","07:00"), departure: getDate("01-27","17:00") },
-    { name: "Dunedin", lat: -45.8159, lng: 170.6272, arrival: getDate("01-28","07:30"), departure: getDate("01-28","16:00") },
-    { name: "Fiordland NP", lat: -44.6414, lng: 167.8974, arrival: getDate("01-29","16:00"), departure: getDate("01-29","19:00") },
-    { name: "Hobart", lat: -42.8821, lng: 147.3272, arrival: getDate("02-01","08:00"), departure: getDate("02-02","18:00") },
-    { name: "Eden", lat: -37.0617, lng: 149.9048, arrival: getDate("02-04","08:00"), departure: getDate("02-04","15:00") },
-    { name: "Sydney", lat: -33.8688, lng: 151.2093, arrival: getDate("02-05","06:30"), departure: null }
-];
-
-const suspiciousActivities = [
-    { leg: 1, text: "Vessel motion irregular. Boat appears to be swaying." },
-    { leg: 2, text: "Passenger behaviour anomaly. Passengers are suspiciously happy." },
-    { leg: 3, text: "Crew activity reduced. Crew must be on break." },
-    { leg: 4, text: "Delayed morning movement detected. Passengers having a sleep-in today." },
-    { leg: 5, text: "Environmental scan alert. High levels of pineapple density detected." },
-    { leg: 6, text: "Visual irregularities observed. Passengers seem unusually interested in door decorations." },
-    { leg: 7, text: "Repeat corridor traffic detected. Nobody appears to be going anywhere." },
-    { leg: 8, text: "Ship stationary. Internal motion continues." },
-    { leg: 9, text: "Noise sensors report laughter followed by silence." },
-    { leg:10, text: "Multiple Do Not Disturb indicators active simultaneously." },
-    { leg:11, text: "Crew avoiding certain corridors." },
-    { leg:12, text: "Docked longer than expected. Engines idle. Ship still rocking." },
-    { leg:13, text: "Passenger return rate unusually delayed." },
-    { leg:14, text: "Automated systems recommend minding own business." }
-];
-
-function initMap() {
-    map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 5,
-        center: { lat: -40, lng: 165 }
-    });
-
-    shipMarker = new google.maps.Marker({
-        map: map,
-        icon: {
-            url: "icon.png",
-            scaledSize: new google.maps.Size(120,120),
-            anchor: new google.maps.Point(60,60)
+        // --- Helper for dates ---
+        function getDate(day, time) {
+            return new Date(`2026-${day}T${time}:00+13:00`).getTime(); // NZ Time (+13)
         }
-    });
 
-    setInterval(updateShipStatus, 1000);
-    updateShipStatus();
-}
+        // --- Itinerary ---
+        const schedule = [
+            { name: "Auckland",         lat: -36.8485, lng: 174.7633, type: "stop", arrival: null,                   departure: getDate("01-20", "18:00") },
+            { name: "Bay of Islands",   lat: -35.2621, lng: 174.1220, type: "stop", arrival: getDate("01-21", "07:00"), departure: getDate("01-21", "19:00") },
+            { name: "Napier",           lat: -39.4928, lng: 176.9120, type: "stop", arrival: getDate("01-23", "08:00"), departure: getDate("01-23", "17:00") },
+            { name: "Wellington",       lat: -41.2865, lng: 174.7762, type: "stop", arrival: getDate("01-24", "08:00"), departure: getDate("01-24", "19:00") },
+            { name: "Nelson",           lat: -41.2706, lng: 173.2840, type: "stop", arrival: getDate("01-25", "08:00"), departure: getDate("01-25", "20:00") },
+            { name: "Picton",           lat: -41.2930, lng: 174.0079, type: "stop", arrival: getDate("01-26", "08:00"), departure: getDate("01-26", "16:00") },
+            { name: "Christchurch",     lat: -43.6017, lng: 172.7188, type: "stop", arrival: getDate("01-27", "07:00"), departure: getDate("01-27", "17:00") },
+            { name: "Dunedin",          lat: -45.8159, lng: 170.6272, type: "stop", arrival: getDate("01-28", "07:30"), departure: getDate("01-28", "16:00") },
+            { name: "Fiordland NP",     lat: -44.6414, lng: 167.8974, type: "stop", arrival: getDate("01-29", "16:00"), departure: getDate("01-29", "19:00") },
+            { name: "Hobart",           lat: -42.8821, lng: 147.3272, type: "stop", arrival: getDate("02-01", "08:00"), departure: getDate("02-02", "18:00") },
+            { name: "Eden",             lat: -37.0617, lng: 149.9048, type: "stop", arrival: getDate("02-04", "08:00"), departure: getDate("02-04", "15:00") },
+            { name: "Sydney",           lat: -33.8688, lng: 151.2093, type: "stop", arrival: getDate("02-05", "06:30"), departure: null }
+        ];
 
-function updateShipStatus() {
-    const now = Date.now();
-    const start = schedule[0].departure;
+        // --- Suspicious Activities by leg index (1-based legs). ---
+        // leg 1 = segment Auckland->Bay, leg 2 = Bay->Napier, etc.
+        const suspiciousActivities = [
+            { leg: 1,  text: "Vessel motion irregular. Boat appears to be swaying." },
+            { leg: 2,  text: "Passenger behaviour anomaly. Passengers are suspiciously happy." },
+            { leg: 3,  text: "Crew activity reduced. Crew must be on break." },
+            { leg: 4,  text: "Delayed morning movement detected. Passengers having a sleep-in today." },
+            { leg: 5,  text: "Environmental scan alert. High levels of pineapple density detected." },
+            { leg: 6,  text: "Visual irregularities observed. Passengers seem unusually interested in door decorations." },
+            { leg: 7,  text: "Repeat corridor traffic detected. Nobody appears to be going anywhere." },
+            { leg: 8,  text: "Ship stationary. Internal motion continues." },
+            { leg: 9,  text: "Noise sensors report laughter followed by silence." },
+            { leg: 10, text: "Multiple Do Not Disturb indicators active simultaneously." },
+            { leg: 11, text: "Crew avoiding certain corridors." },
+            { leg: 12, text: "Docked longer than expected. Engines idle. Ship still rocking." },
+            { leg: 13, text: "Passenger return rate unusually delayed." },
+            { leg: 14, text: "Automated systems recommend minding own business." }
+        ];
 
-    let pos = schedule[0];
-    let status = "Awaiting Departure";
-    let next = schedule[1].name;
-    let day = 0;
+        // --- INIT MAP ---
+        function initMap() {
+            const mapOptions = {
+                zoom: 5,
+                center: { lat: -40.0, lng: 165.0 },
+                mapId: 'DEMO_MAP_ID',
+                disableDefaultUI: false
+            };
 
-    if (now > start) {
-        day = Math.ceil((now - start) / (1000*60*60*24));
-        for (let i=0;i<schedule.length-1;i++) {
-            if (now > schedule[i].departure && now < schedule[i+1].arrival) {
-                pos = {
-                    lat: schedule[i].lat + (schedule[i+1].lat - schedule[i].lat) * 0.5,
-                    lng: schedule[i].lng + (schedule[i+1].lng - schedule[i].lng) * 0.5
-                };
-                status = "At Sea 🌊";
-                next = schedule[i+1].name;
-                break;
+            map = new google.maps.Map(document.getElementById("map"), mapOptions);
+
+            // Draw the full route line (RESTORED)
+            const routeCoords = schedule.map(port => ({ lat: port.lat, lng: port.lng }));
+            const routePath = new google.maps.Polyline({
+                path: routeCoords,
+                geodesic: true,
+                strokeColor: "#FF0000",
+                strokeOpacity: 0.4,
+                strokeWeight: 2
+            });
+            routePath.setMap(map);
+
+            // Ship Marker
+            shipMarker = new google.maps.Marker({
+                position: routeCoords[0],
+                map: map,
+                title: "The Pineapple Express",
+                icon: {
+                    url: "icon.png",
+                    scaledSize: new google.maps.Size(160, 160),
+                    anchor: new google.maps.Point(30, 30)
+                },
+                animation: google.maps.Animation.DROP
+            });
+
+            setInterval(updateShipStatus, 1000);
+            updateShipStatus();
+        }
+
+        // --- MAIN LOOP ---
+        function updateShipStatus() {
+            // const now = new Date("2026-01-22T12:00:00+13:00").getTime(); // optional testing
+            const now = Date.now();
+
+            const tripStart = schedule[0].departure;
+            const tripEnd = schedule[schedule.length-1].arrival;
+
+            let currentPos = { lat: schedule[0].lat, lng: schedule[0].lng };
+            let statusMsg = "";
+            let nextStopName = "";
+            let tripDay = 0;
+            let percentJourney = 0;
+
+            // Leg index for activity messages
+            // 0 = before departure, 1 = first sailing segment, etc.
+            let currentLegIndex = 0;
+
+            if (now < tripStart) {
+                statusMsg = "Awaiting Departure";
+                currentPos = { lat: schedule[0].lat, lng: schedule[0].lng };
+                nextStopName = schedule[1].name;
+                tripDay = 0;
+                currentLegIndex = 0;
+            } else if (now > tripEnd) {
+                statusMsg = "Journey Complete!";
+                currentPos = { lat: schedule[schedule.length-1].lat, lng: schedule[schedule.length-1].lng };
+                nextStopName = "Home";
+                tripDay = 16;
+                percentJourney = 100;
+                currentLegIndex = 14;
+            } else {
+                tripDay = Math.ceil((now - tripStart) / (1000 * 60 * 60 * 24));
+
+                const totalDuration = tripEnd - tripStart;
+                const elapsed = now - tripStart;
+                percentJourney = (elapsed / totalDuration) * 100;
+
+                for (let i = 0; i < schedule.length - 1; i++) {
+                    const currentPort = schedule[i];
+                    const nextPort = schedule[i + 1];
+
+                    // Docked at current port (between arrival and departure)
+                    if (currentPort.arrival && now >= currentPort.arrival && now <= currentPort.departure) {
+                        currentPos = { lat: currentPort.lat, lng: currentPort.lng };
+                        statusMsg = `Docked: ${currentPort.name}`;
+                        nextStopName = nextPort.name;
+                        currentLegIndex = i + 1;
+                        break;
+                    }
+
+                    // Sailing (after current departure, before next arrival)
+                    if (now > currentPort.departure && now < nextPort.arrival) {
+                        statusMsg = "At Sea 🌊";
+                        nextStopName = nextPort.name;
+
+                        const sailingDuration = nextPort.arrival - currentPort.departure;
+                        const timeSailed = now - currentPort.departure;
+                        const progress = timeSailed / sailingDuration;
+
+                        const lat = currentPort.lat + (nextPort.lat - currentPort.lat) * progress;
+                        const lng = currentPort.lng + (nextPort.lng - currentPort.lng) * progress;
+                        currentPos = { lat: lat, lng: lng };
+
+                        currentLegIndex = i + 1;
+                        break;
+                    }
+                }
             }
+
+            // Update marker + map
+            if (shipMarker) {
+                shipMarker.setPosition(currentPos);
+                map.panTo(currentPos);
+            }
+
+            // Update UI
+            document.getElementById("status-text").innerText = statusMsg;
+            document.getElementById("status-text").className =
+                statusMsg.includes("Docked") ? "value status-docked" : "value status-active";
+            document.getElementById("next-stop").innerText = nextStopName;
+            document.getElementById("trip-day").innerText = tripDay > 0 ? `Day ${tripDay}` : "Soon";
+
+            // Counter
+            const totalMiles = 2100;
+            const bruces = Math.floor((percentJourney / 100) * totalMiles);
+            document.getElementById("bruce-counter").innerText = bruces.toString().padStart(4, '0');
+
+            // Suspicious Activity (always shows; falls back to default message)
+            const suspiciousBox = document.getElementById("suspicious-box");
+            const suspiciousText = document.getElementById("suspicious-text");
+
+            const activity = suspiciousActivities.find(a => a.leg === currentLegIndex);
+
+            suspiciousText.innerText = activity
+                ? activity.text
+                : "Cargo inspection underway. Crates being loaded appear to contain tropical fruit.";
+
+            suspiciousBox.style.display = "block";
         }
-    }
-
-    shipMarker.setPosition(pos);
-    map.panTo(pos);
-
-    document.getElementById("status-text").innerText = status;
-    document.getElementById("trip-day").innerText = day ? `Day ${day}` : "--";
-    document.getElementById("next-stop").innerText = next;
-    document.getElementById("bruce-counter").innerText = String(day*150).padStart(4,"0");
-
-    const alert = suspiciousActivities.find(a => a.leg === day);
-    const box = document.getElementById("suspicious-box");
-
-    document.getElementById("suspicious-text").innerText =
-        alert
-        ? alert.text
-        : "Cargo inspection underway. Crates being loaded appear to contain tropical fruit.";
-
-    box.style.display = "block";
-}
-</script>
-
+    </script>
 </body>
 </html>
