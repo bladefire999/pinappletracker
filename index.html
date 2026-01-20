@@ -148,12 +148,10 @@
         let map;
         let shipMarker;
 
-        // --- Helper for dates ---
         function getDate(day, time) {
             return new Date(`2026-${day}T${time}:00+13:00`).getTime(); // NZ Time (+13)
         }
 
-        // --- Itinerary ---
         const schedule = [
             { name: "Auckland",         lat: -36.8485, lng: 174.7633, type: "stop", arrival: null,                   departure: getDate("01-20", "18:00") },
             { name: "Bay of Islands",   lat: -35.2621, lng: 174.1220, type: "stop", arrival: getDate("01-21", "07:00"), departure: getDate("01-21", "19:00") },
@@ -169,8 +167,7 @@
             { name: "Sydney",           lat: -33.8688, lng: 151.2093, type: "stop", arrival: getDate("02-05", "06:30"), departure: null }
         ];
 
-        // --- Suspicious Activities by leg index (1-based legs). ---
-        // leg 1 = segment Auckland->Bay, leg 2 = Bay->Napier, etc.
+        // leg 1 = first segment, etc.
         const suspiciousActivities = [
             { leg: 1,  text: "Vessel motion irregular. Boat appears to be swaying." },
             { leg: 2,  text: "Passenger behaviour anomaly. Passengers are suspiciously happy." },
@@ -188,25 +185,23 @@
             { leg: 14, text: "Automated systems recommend minding own business." }
         ];
 
-        // --- INIT MAP ---
         function initMap() {
             const mapOptions = {
                 zoom: 5,
                 center: { lat: -40.0, lng: 165.0 },
-                mapId: 'DEMO_MAP_ID',
                 disableDefaultUI: false
             };
 
             map = new google.maps.Map(document.getElementById("map"), mapOptions);
 
-            // Draw the full route line (RESTORED)
+            // Route line (VERY visible)
             const routeCoords = schedule.map(port => ({ lat: port.lat, lng: port.lng }));
             const routePath = new google.maps.Polyline({
                 path: routeCoords,
                 geodesic: true,
-                strokeColor: "#FF0000",
-                strokeOpacity: 0.4,
-                strokeWeight: 2
+                strokeColor: "#ff0000",
+                strokeOpacity: 1.0,
+                strokeWeight: 6
             });
             routePath.setMap(map);
 
@@ -227,13 +222,12 @@
             updateShipStatus();
         }
 
-        // --- MAIN LOOP ---
         function updateShipStatus() {
             // const now = new Date("2026-01-22T12:00:00+13:00").getTime(); // optional testing
             const now = Date.now();
 
             const tripStart = schedule[0].departure;
-            const tripEnd = schedule[schedule.length-1].arrival;
+            const tripEnd = schedule[schedule.length - 1].arrival;
 
             let currentPos = { lat: schedule[0].lat, lng: schedule[0].lng };
             let statusMsg = "";
@@ -241,7 +235,6 @@
             let tripDay = 0;
             let percentJourney = 0;
 
-            // Leg index for activity messages
             // 0 = before departure, 1 = first sailing segment, etc.
             let currentLegIndex = 0;
 
@@ -253,7 +246,7 @@
                 currentLegIndex = 0;
             } else if (now > tripEnd) {
                 statusMsg = "Journey Complete!";
-                currentPos = { lat: schedule[schedule.length-1].lat, lng: schedule[schedule.length-1].lng };
+                currentPos = { lat: schedule[schedule.length - 1].lat, lng: schedule[schedule.length - 1].lng };
                 nextStopName = "Home";
                 tripDay = 16;
                 percentJourney = 100;
@@ -269,7 +262,7 @@
                     const currentPort = schedule[i];
                     const nextPort = schedule[i + 1];
 
-                    // Docked at current port (between arrival and departure)
+                    // Docked
                     if (currentPort.arrival && now >= currentPort.arrival && now <= currentPort.departure) {
                         currentPos = { lat: currentPort.lat, lng: currentPort.lng };
                         statusMsg = `Docked: ${currentPort.name}`;
@@ -278,7 +271,7 @@
                         break;
                     }
 
-                    // Sailing (after current departure, before next arrival)
+                    // Sailing
                     if (now > currentPort.departure && now < nextPort.arrival) {
                         statusMsg = "At Sea 🌊";
                         nextStopName = nextPort.name;
@@ -289,7 +282,7 @@
 
                         const lat = currentPort.lat + (nextPort.lat - currentPort.lat) * progress;
                         const lng = currentPort.lng + (nextPort.lng - currentPort.lng) * progress;
-                        currentPos = { lat: lat, lng: lng };
+                        currentPos = { lat, lng };
 
                         currentLegIndex = i + 1;
                         break;
@@ -297,25 +290,22 @@
                 }
             }
 
-            // Update marker + map
             if (shipMarker) {
                 shipMarker.setPosition(currentPos);
                 map.panTo(currentPos);
             }
 
-            // Update UI
             document.getElementById("status-text").innerText = statusMsg;
             document.getElementById("status-text").className =
                 statusMsg.includes("Docked") ? "value status-docked" : "value status-active";
             document.getElementById("next-stop").innerText = nextStopName;
             document.getElementById("trip-day").innerText = tripDay > 0 ? `Day ${tripDay}` : "Soon";
 
-            // Counter
             const totalMiles = 2100;
             const bruces = Math.floor((percentJourney / 100) * totalMiles);
             document.getElementById("bruce-counter").innerText = bruces.toString().padStart(4, '0');
 
-            // Suspicious Activity (always shows; falls back to default message)
+            // Suspicious Activity (always show with fallback)
             const suspiciousBox = document.getElementById("suspicious-box");
             const suspiciousText = document.getElementById("suspicious-text");
 
