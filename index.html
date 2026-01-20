@@ -3,10 +3,21 @@
 <head>
     <title>The Pineapple Express Tracker</title>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #e0f7fa; }
-        
-        /* The Dashboard Overlay */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #e0f7fa;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* Dashboard */
         #bruce-dashboard {
             position: absolute;
             top: 20px;
@@ -20,12 +31,32 @@
             border: 2px solid #0288d1;
         }
 
-        h1 { margin: 0 0 10px 0; color: #01579b; font-size: 24px; text-align: center; }
-        .status-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
-        .label { font-weight: bold; color: #555; }
-        .value { color: #000; font-weight: bold; }
+        h1 {
+            margin: 0 0 10px;
+            color: #01579b;
+            font-size: 24px;
+            text-align: center;
+        }
 
-        /* The Bruce Counter */
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .value {
+            font-weight: bold;
+        }
+
+        .status-active { color: #2e7d32; }
+        .status-docked { color: #c62828; }
+
         .bruce-meter {
             background: #263238;
             color: #4fc3f7;
@@ -33,241 +64,194 @@
             border-radius: 8px;
             text-align: center;
             margin-top: 15px;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: monospace;
         }
-        .bruce-count { font-size: 32px; font-weight: bold; display: block; }
-        .bruce-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* Map Container */
-        #map { height: 100vh; width: 100%; }
+        .bruce-count {
+            font-size: 32px;
+            display: block;
+        }
 
-        /* Fun styling for the connecting line */
-        .status-active { color: #2e7d32; } /* Green for moving */
-        .status-docked { color: #c62828; } /* Red for stopped */
+        /* Suspicious Activity Box */
+        #suspicious-box {
+            position: absolute;
+            bottom: 25px;
+            left: 25px;
+            max-width: 340px;
+            background: rgba(255, 235, 59, 0.95);
+            border: 3px dashed #f57f17;
+            border-radius: 14px;
+            padding: 14px 16px;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            animation: wiggle 1.2s infinite;
+        }
+
+        .alert-icon {
+            font-size: 26px;
+            text-align: center;
+            animation: flash 1s infinite;
+        }
+
+        .alert-text {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #5d4037;
+            text-align: center;
+        }
+
+        @keyframes flash {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes wiggle {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(0.6deg); }
+            75% { transform: rotate(-0.6deg); }
+            100% { transform: rotate(0deg); }
+        }
     </style>
 </head>
+
 <body>
 
-    <div id="bruce-dashboard">
-        <h1>🛳️🍍 The Pineapple Express</h1>
-        <hr>
-        <div class="status-row">
-            <span class="label">Current Status:</span>
-            <span class="value" id="status-text">Locating Bruce...</span>
-        </div>
-        <div class="status-row">
-            <span class="label">Trip Day:</span>
-            <span class="value" id="trip-day">--</span>
-        </div>
-        <div class="status-row">
-            <span class="label">Destination:</span>
-            <span class="value" id="next-stop">--</span>
-        </div>
-        
-        <div class="bruce-meter">
-            <span class="bruce-count" id="bruce-counter">0000</span>
-            <span class="bruce-label">Total Pineapples 🍍</span>
-        </div>
-        
-        <div style="margin-top:10px; font-size:12px; text-align:center; color:#888;">
-            *Live estimates based on itinerary.
-        </div>
+<div id="bruce-dashboard">
+    <h1>🛳️ The Pineapple Express</h1>
+    <div class="status-row">
+        <span class="label">Current Status:</span>
+        <span class="value" id="status-text">Loading...</span>
+    </div>
+    <div class="status-row">
+        <span class="label">Trip Day:</span>
+        <span class="value" id="trip-day">--</span>
+    </div>
+    <div class="status-row">
+        <span class="label">Next Stop:</span>
+        <span class="value" id="next-stop">--</span>
     </div>
 
-    <div id="map"></div>
+    <div class="bruce-meter">
+        <span class="bruce-count" id="bruce-counter">0000</span>
+        <span>Total Pineapples 🍍</span>
+    </div>
+</div>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCUefb8ZLoq9mlu4NwTgt0SkZCHxH3QnOI&callback=initMap&v=weekly" async></script>
+<div id="suspicious-box">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-text" id="suspicious-text"></div>
+</div>
 
-    <script>
-        let map;
-        let shipMarker;
-        let pathLine;
-        
-        // --- 1. THE DATA (Digitized from your image) ---
-        // Times are in ISO format (UTC or Local? Assuming NZ/AU local time for simplicity, 
-        // using ISO strings ensures logic holds up). 
-        // We use a helper to generate dates relative to the year 2026.
-        
-        function getDate(day, time) {
-            // Format: 2026-01-DDTHH:MM:00
-            // Note: Months are 0-indexed in JS Date constructor, but string parsing is easier here.
-            // Jan = 01, Feb = 02.
-            return new Date(`2026-${day}T${time}:00+13:00`).getTime(); // Assuming NZ Time (+13 in Jan DST)
-        }
+<div id="map"></div>
 
-        // The Itinerary
-        const schedule = [
-            { name: "Auckland",         lat: -36.8485, lng: 174.7633, type: "stop", arrival: null,                   departure: getDate("01-20", "18:00") },
-            { name: "Bay of Islands",   lat: -35.2621, lng: 174.1220, type: "stop", arrival: getDate("01-21", "07:00"), departure: getDate("01-21", "19:00") },
-            { name: "Napier",           lat: -39.4928, lng: 176.9120, type: "stop", arrival: getDate("01-23", "08:00"), departure: getDate("01-23", "17:00") },
-            { name: "Wellington",       lat: -41.2865, lng: 174.7762, type: "stop", arrival: getDate("01-24", "08:00"), departure: getDate("01-24", "19:00") },
-            { name: "Nelson",           lat: -41.2706, lng: 173.2840, type: "stop", arrival: getDate("01-25", "08:00"), departure: getDate("01-25", "20:00") },
-            { name: "Picton",           lat: -41.2930, lng: 174.0079, type: "stop", arrival: getDate("01-26", "08:00"), departure: getDate("01-26", "16:00") },
-            { name: "Christchurch",     lat: -43.6017, lng: 172.7188, type: "stop", arrival: getDate("01-27", "07:00"), departure: getDate("01-27", "17:00") },
-            { name: "Dunedin",          lat: -45.8159, lng: 170.6272, type: "stop", arrival: getDate("01-28", "07:30"), departure: getDate("01-28", "16:00") },
-            { name: "Fiordland NP",     lat: -44.6414, lng: 167.8974, type: "stop", arrival: getDate("01-29", "16:00"), departure: getDate("01-29", "19:00") },
-            { name: "Hobart",           lat: -42.8821, lng: 147.3272, type: "stop", arrival: getDate("02-01", "08:00"), departure: getDate("02-02", "18:00") },
-            { name: "Eden",             lat: -37.0617, lng: 149.9048, type: "stop", arrival: getDate("02-04", "08:00"), departure: getDate("02-04", "15:00") },
-            { name: "Sydney",           lat: -33.8688, lng: 151.2093, type: "stop", arrival: getDate("02-05", "06:30"), departure: null }
-        ];
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCUefb8ZLoq9mlu4NwTgt0SkZCHxH3QnOI&callback=initMap&v=weekly" async></script>
 
-        // --- 2. INITIALIZE MAP ---
-        function initMap() {
-            // Center roughly between NZ and Aus
-            const mapOptions = {
-                zoom: 5,
-                center: { lat: -40.0, lng: 165.0 },
-                mapId: 'DEMO_MAP_ID', // Required for advanced markers if you use them
-                disableDefaultUI: false
-            };
+<script>
+let map;
+let shipMarker;
 
-            map = new google.maps.Map(document.getElementById("map"), mapOptions);
+function getDate(day, time) {
+    return new Date(`2026-${day}T${time}:00+13:00`).getTime();
+}
 
-            // Draw the full route line (Grey, static)
-            const routeCoords = schedule.map(port => ({ lat: port.lat, lng: port.lng }));
-            const routePath = new google.maps.Polyline({
-                path: routeCoords,
-                geodesic: true,
-                strokeColor: "#FF0000",
-                strokeOpacity: 0.4,
-                strokeWeight: 2,
-            });
-            routePath.setMap(map);
+const schedule = [
+    { name: "Auckland", lat: -36.8485, lng: 174.7633, arrival: null, departure: getDate("01-20","18:00") },
+    { name: "Bay of Islands", lat: -35.2621, lng: 174.1220, arrival: getDate("01-21","07:00"), departure: getDate("01-21","19:00") },
+    { name: "Napier", lat: -39.4928, lng: 176.9120, arrival: getDate("01-23","08:00"), departure: getDate("01-23","17:00") },
+    { name: "Wellington", lat: -41.2865, lng: 174.7762, arrival: getDate("01-24","08:00"), departure: getDate("01-24","19:00") },
+    { name: "Nelson", lat: -41.2706, lng: 173.2840, arrival: getDate("01-25","08:00"), departure: getDate("01-25","20:00") },
+    { name: "Picton", lat: -41.2930, lng: 174.0079, arrival: getDate("01-26","08:00"), departure: getDate("01-26","16:00") },
+    { name: "Christchurch", lat: -43.6017, lng: 172.7188, arrival: getDate("01-27","07:00"), departure: getDate("01-27","17:00") },
+    { name: "Dunedin", lat: -45.8159, lng: 170.6272, arrival: getDate("01-28","07:30"), departure: getDate("01-28","16:00") },
+    { name: "Fiordland NP", lat: -44.6414, lng: 167.8974, arrival: getDate("01-29","16:00"), departure: getDate("01-29","19:00") },
+    { name: "Hobart", lat: -42.8821, lng: 147.3272, arrival: getDate("02-01","08:00"), departure: getDate("02-02","18:00") },
+    { name: "Eden", lat: -37.0617, lng: 149.9048, arrival: getDate("02-04","08:00"), departure: getDate("02-04","15:00") },
+    { name: "Sydney", lat: -33.8688, lng: 151.2093, arrival: getDate("02-05","06:30"), departure: null }
+];
 
-            // Create Ship Marker (Bruce Express)
-    shipMarker = new google.maps.Marker({
-        position: routeCoords[0],
-        map: map,
-        title: "The Pineapple Express",
-        icon: {
-            // REPLACE THE URL BELOW with your own image link or file name!
-            url: "icon.png", 
-            scaledSize: new google.maps.Size(160, 160), // Width, Height (in pixels)
-            anchor: new google.maps.Point(30, 30)     // The center of the image (half of width, half of height)
-        },
-        animation: google.maps.Animation.DROP
+const suspiciousActivities = [
+    { leg: 1, text: "Vessel motion irregular. Boat appears to be swaying." },
+    { leg: 2, text: "Passenger behaviour anomaly. Passengers are suspiciously happy." },
+    { leg: 3, text: "Crew activity reduced. Crew must be on break." },
+    { leg: 4, text: "Delayed morning movement detected. Passengers having a sleep-in today." },
+    { leg: 5, text: "Environmental scan alert. High levels of pineapple density detected." },
+    { leg: 6, text: "Visual irregularities observed. Passengers seem unusually interested in door decorations." },
+    { leg: 7, text: "Repeated door traffic detected. No luggage movement observed." },
+    { leg: 8, text: "Ship stationary. Internal motion continues." },
+    { leg: 9, text: "Noise sensors report laughter followed by silence." },
+    { leg:10, text: "Multiple Do Not Disturb indicators active simultaneously." },
+    { leg:11, text: "Crew avoiding certain corridors." },
+    { leg:12, text: "Extended dock stay. Engines idle. Ship still rocking." },
+    { leg:13, text: "Passenger return rate unusually delayed." },
+    { leg:14, text: "Automated systems recommend minding own business." }
+];
+
+function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 5,
+        center: { lat: -40, lng: 165 }
     });
 
-            // Start the update loop
-            setInterval(updateShipStatus, 1000); // Updates every second
-            updateShipStatus(); // Run immediately
+    shipMarker = new google.maps.Marker({
+        map: map,
+        icon: {
+            url: "icon.png",
+            scaledSize: new google.maps.Size(120,120),
+            anchor: new google.maps.Point(60,60)
         }
+    });
 
-        // --- 3. THE LOGIC ---
-        function updateShipStatus() {
-            // FOR TESTING: To see it work right now, uncomment the line below and set a fake date!
-            // const now = new Date("2026-01-22T12:00:00+13:00").getTime(); 
-            
-            const now = Date.now(); 
-            const tripStart = schedule[0].departure;
-            const tripEnd = schedule[schedule.length-1].arrival;
+    setInterval(updateShipStatus, 1000);
+    updateShipStatus();
+}
 
-            let currentPos = { lat: 0, lng: 0 };
-            let heading = 0;
-            let statusMsg = "";
-            let nextStopName = "";
-            let tripDay = 0;
-            let percentJourney = 0;
+function updateShipStatus() {
+    const now = Date.now();
+    const start = schedule[0].departure;
+    const end = schedule[schedule.length-1].arrival;
 
-            if (now < tripStart) {
-                // Before trip
-                statusMsg = "Awaiting Departure";
-                currentPos = { lat: schedule[0].lat, lng: schedule[0].lng };
-                nextStopName = schedule[1].name;
-                tripDay = 0;
-            } else if (now > tripEnd) {
-                // After trip
-                statusMsg = "Journey Complete!";
-                currentPos = { lat: schedule[schedule.length-1].lat, lng: schedule[schedule.length-1].lng };
-                nextStopName = "Home";
-                tripDay = 16;
-                percentJourney = 100;
-            } else {
-                // DURING TRIP
-                // Find which segment we are in
-                tripDay = Math.ceil((now - tripStart) / (1000 * 60 * 60 * 24));
-                
-                // Calculate percentage of total time for the Bruce Counter
-                const totalDuration = tripEnd - tripStart;
-                const elapsed = now - tripStart;
-                percentJourney = (elapsed / totalDuration) * 100;
+    let pos = schedule[0];
+    let status = "Awaiting Departure";
+    let next = schedule[1].name;
+    let day = 0;
 
-                let foundSegment = false;
-
-                for (let i = 0; i < schedule.length - 1; i++) {
-                    const currentPort = schedule[i];
-                    const nextPort = schedule[i + 1];
-
-                    // CASE A: Are we AT the current port? (Between arrival and departure)
-                    if (currentPort.arrival && now >= currentPort.arrival && now <= currentPort.departure) {
-                        currentPos = { lat: currentPort.lat, lng: currentPort.lng };
-                        statusMsg = `Docked: ${currentPort.name}`;
-                        nextStopName = nextPort.name;
-                        foundSegment = true;
-                        break;
-                    }
-
-                    // CASE B: Are we SAILING between current port and next port?
-                    // (After current departure, before next arrival)
-                    if (now > currentPort.departure && now < nextPort.arrival) {
-                        statusMsg = "At Sea 🌊";
-                        nextStopName = nextPort.name;
-
-                        // Calculate interpolation (0.0 to 1.0)
-                        const sailingDuration = nextPort.arrival - currentPort.departure;
-                        const timeSailed = now - currentPort.departure;
-                        const progress = timeSailed / sailingDuration;
-
-                        // Linear interpolation of coordinates
-                        const lat = currentPort.lat + (nextPort.lat - currentPort.lat) * progress;
-                        const lng = currentPort.lng + (nextPort.lng - currentPort.lng) * progress;
-                        currentPos = { lat: lat, lng: lng };
-
-                        // Calculate heading for the arrow icon
-                        heading = getHeading(currentPort.lat, currentPort.lng, nextPort.lat, nextPort.lng);
-                        foundSegment = true;
-                        break;
-                    }
-                }
+    if (now > start) {
+        day = Math.ceil((now - start) / (1000*60*60*24));
+        for (let i=0;i<schedule.length-1;i++) {
+            if (now > schedule[i].departure && now < schedule[i+1].arrival) {
+                pos = {
+                    lat: schedule[i].lat + (schedule[i+1].lat - schedule[i].lat) * 0.5,
+                    lng: schedule[i].lng + (schedule[i+1].lng - schedule[i].lng) * 0.5
+                };
+                status = "At Sea 🌊";
+                next = schedule[i+1].name;
+                break;
             }
-
-            // Update UI
-            // Update UI
-    if(shipMarker) {
-        shipMarker.setPosition(currentPos);
-        
-        // We removed the rotation code here because images usually stay upright!
-        
-        map.panTo(currentPos);
+        }
     }
 
-            document.getElementById("status-text").innerText = statusMsg;
-            document.getElementById("status-text").className = statusMsg.includes("Docked") ? "value status-docked" : "value status-active";
-            document.getElementById("next-stop").innerText = nextStopName;
-            document.getElementById("trip-day").innerText = tripDay > 0 ? `Day ${tripDay}` : "Soon";
-            
-            // Update Bruce Counter (Simulated Miles based on % of trip completed)
-            // Lets assume total trip is roughly 3000 miles
-            const totalMiles = 2100; 
-            const bruces = Math.floor((percentJourney / 100) * totalMiles);
-            document.getElementById("bruce-counter").innerText = bruces.toString().padStart(4, '0');
-        }
+    shipMarker.setPosition(pos);
+    map.panTo(pos);
 
-        // Helper to calculate angle between two coords
-        function getHeading(lat1, lng1, lat2, lng2) {
-            const toRad = Math.PI / 180;
-            const startLat = lat1 * toRad;
-            const startLng = lng1 * toRad;
-            const destLat = lat2 * toRad;
-            const destLng = lng2 * toRad;
+    document.getElementById("status-text").innerText = status;
+    document.getElementById("trip-day").innerText = day ? `Day ${day}` : "--";
+    document.getElementById("next-stop").innerText = next;
+    document.getElementById("bruce-counter").innerText = String(day*150).padStart(4,"0");
 
-            const y = Math.sin(destLng - startLng) * Math.cos(destLat);
-            const x = Math.cos(startLat) * Math.sin(destLat) -
-                      Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
-            let brng = Math.atan2(y, x);
-            brng = brng * 180 / Math.PI;
-            return (brng + 360) % 360;
-        }
-    </script>
+    const alert = suspiciousActivities.find(a => a.leg === day);
+    const box = document.getElementById("suspicious-box");
+
+    if (alert) {
+        document.getElementById("suspicious-text").innerText = alert.text;
+        box.style.display = "block";
+    } else {
+        box.style.display = "none";
+    }
+}
+</script>
+
 </body>
 </html>
